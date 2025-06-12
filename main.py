@@ -14,6 +14,9 @@ from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout
 from tensorflow.keras.optimizers import Adam
 import tensorflow as tf
 
+# LIME import
+from lime.lime_text import LimeTextExplainer
+
 # -------------------------------------------
 # Data Load + Sampling for Speed
 # -------------------------------------------
@@ -53,6 +56,7 @@ data = load_data()
 data['text'] = data['title'] + " " + data['text']
 data['text'] = data['text'].apply(clean_text)
 
+X_raw = data['text'].tolist()  # store raw version for LIME
 X = data['text'].values
 y = data['label'].values
 
@@ -72,7 +76,9 @@ X = pad_sequences(X, maxlen=MAX_LEN)
 # Train/Test Split
 # -------------------------------------------
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test, X_raw_train, X_raw_test = train_test_split(
+    X, y, X_raw, test_size=0.2, random_state=42
+)
 
 # -------------------------------------------
 # Model
@@ -106,3 +112,25 @@ plt.xlabel("Predicted")
 plt.ylabel("Actual")
 plt.title("Confusion Matrix")
 plt.show()
+
+# -------------------------------------------
+# LIME Explainer
+# -------------------------------------------
+
+class_names = ['Fake', 'Real']
+
+def predict_proba(texts):
+    sequences = tokenizer.texts_to_sequences(texts)
+    padded = pad_sequences(sequences, maxlen=MAX_LEN)
+    return model.predict(padded)
+
+explainer = LimeTextExplainer(class_names=class_names)
+
+idx = 0  
+example_text = X_raw_test[idx]
+
+print(f"\nExplaining text sample {idx}:\n")
+print(example_text)
+explanation = explainer.explain_instance(example_text, predict_proba, num_features=10)
+explanation.save_to_file('lime_explanation.html')
+print("\nExplanation saved to lime_explanation.html")
